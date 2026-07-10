@@ -1,7 +1,13 @@
 import React, { useState } from 'react';
 import { usePortal } from '../context/PortalContext';
+import { useAuth } from '../auth/AuthContext';
+import { useTask } from '../context/TaskContext';
 import { motion } from 'framer-motion';
-import { Briefcase, Clock, FileDown, CheckCircle2, MessageSquare, ArrowUpRight, Send, AlertCircle, Sparkles } from 'lucide-react';
+import {
+  Briefcase, Clock, FileDown, CheckCircle2, MessageSquare,
+  ArrowUpRight, Send, AlertCircle, Sparkles, ClipboardCheck,
+  Flag, ChevronRight,
+} from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { usePageTitle } from '../hooks/usePageTitle';
 
@@ -12,7 +18,13 @@ const fadeUp = {
 
 export const ClientDashboard: React.FC = () => {
   usePageTitle('Client Dashboard');
+  const { user } = useAuth();
   const { projects, deliverables, updateDeliverableStatus, addCommentToProject } = usePortal();
+  const { getTasksForClient } = useTask();
+
+  const myTasks = user ? getTasksForClient(user.id) : [];
+  const pendingTasks = myTasks.filter(t => t.status === 'Pending Acceptance');
+  const activeTasks = myTasks.filter(t => t.status === 'Accepted' || t.status === 'In Progress');
 
   const pendingReviews = deliverables.filter(d => d.status === 'review');
   const [commentText, setCommentText] = useState('');
@@ -41,12 +53,64 @@ export const ClientDashboard: React.FC = () => {
           <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold mb-3" style={{ background: 'rgba(99,102,241,0.15)', border: '1px solid rgba(99,102,241,0.3)', color: '#A5B4FC' }}>
             <Sparkles className="h-3 w-3" />Client Collaboration Space
           </span>
-          <h1 className="text-2xl font-extrabold tracking-tight text-white">Welcome, Acme Client Partner</h1>
+          <h1 className="text-2xl font-extrabold tracking-tight text-white">Welcome, {user?.fullName || 'Client'}</h1>
           <p className="mt-1 text-sm" style={{ color: '#94A3B8' }}>
             Review design hand-offs, leave notes, and sign off on deliverables instantly.
           </p>
         </div>
       </motion.div>
+
+      {/* ── Task summary widget ── */}
+      {myTasks.length > 0 && (
+        <motion.div variants={fadeUp} initial="hidden" animate="visible" custom={1}
+          className="glass rounded-2xl p-5"
+          style={{ border: pendingTasks.length > 0 ? '1px solid rgba(99,102,241,0.3)' : '1px solid rgba(99,102,241,0.15)' }}>
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-2">
+              <ClipboardCheck className="h-5 w-5" style={{ color: '#6366F1' }} />
+              <h3 className="font-bold text-white">My Assigned Tasks</h3>
+              {pendingTasks.length > 0 && (
+                <span className="rounded-full px-2 py-0.5 text-[10px] font-bold"
+                  style={{ background: 'rgba(245,158,11,0.15)', color: '#F59E0B' }}>
+                  {pendingTasks.length} need action
+                </span>
+              )}
+            </div>
+            <Link to="/my-tasks"
+              className="flex items-center gap-1 text-xs font-semibold transition"
+              style={{ color: '#818CF8' }}>
+              View all <ChevronRight className="h-3.5 w-3.5" />
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {myTasks.slice(0, 3).map(task => {
+              const isPending = task.status === 'Pending Acceptance';
+              const priorityColor = task.priority === 'Critical' ? '#EF4444' : task.priority === 'High' ? '#F43F5E' : task.priority === 'Medium' ? '#F59E0B' : '#818CF8';
+              const statusColor = isPending ? '#F59E0B' : task.status === 'Accepted' ? '#10B981' : task.status === 'Rejected' ? '#F43F5E' : '#6366F1';
+              return (
+                <Link key={task.id} to="/my-tasks"
+                  className="rounded-xl p-4 flex flex-col gap-2 transition hover:bg-white/5"
+                  style={{ background: 'rgba(255,255,255,0.03)', border: `1px solid ${isPending ? 'rgba(245,158,11,0.25)' : 'rgba(255,255,255,0.06)'}` }}>
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="text-xs font-bold text-white leading-tight line-clamp-2 flex-1">{task.title}</p>
+                    <span className="shrink-0 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-bold"
+                      style={{ background: `${priorityColor}20`, color: priorityColor }}>
+                      <Flag className="h-2 w-2" />{task.priority}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold"
+                      style={{ background: `${statusColor}15`, color: statusColor }}>
+                      {task.status}
+                    </span>
+                    <span className="text-[10px]" style={{ color: '#475569' }}>Due {task.dueDate}</span>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </motion.div>
+      )}
 
       {/* Pending reviews */}
       {pendingReviews.length > 0 && (

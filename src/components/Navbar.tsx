@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { usePortal } from '../context/PortalContext';
+import { useTask } from '../context/TaskContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '../auth/AuthContext';
 import { Bell, LogOut, Menu, Zap, ChevronDown, Settings, ShieldAlert, CheckCircle2, Info, ShieldCheck, Users } from 'lucide-react';
@@ -9,6 +10,7 @@ interface NavbarProps { onToggleSidebar: () => void; }
 
 export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar }) => {
   const { notifications } = usePortal();
+  const { unreadCountForUser } = useTask();
   const { signOut, user } = useAuth();
   const navigate = useNavigate();
   const [showProfile, setShowProfile] = useState(false);
@@ -16,7 +18,7 @@ export const Navbar: React.FC<NavbarProps> = ({ onToggleSidebar }) => {
   const profileRef = useRef<HTMLDivElement>(null);
   const notifRef = useRef<HTMLDivElement>(null);
 
-  const unread = notifications.filter(n => !n.read).length;
+  const unread = notifications.filter(n => !n.read).length + (user ? unreadCountForUser(user.id) : 0);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {

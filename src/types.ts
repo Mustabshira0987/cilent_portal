@@ -94,3 +94,39 @@ export interface AgencyProfile {
   phone: string;
   logo?: string;
 }
+
+export type TaskStatus = 'Pending Acceptance' | 'Accepted' | 'Rejected' | 'In Progress' | 'Completed';
+export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Critical';
+
+export interface Task {
+  id: string;
+  clientId: string;
+  clientEmail: string;
+  clientUsername: string;
+  assignedBy: string;
+  assignedByEmail: string;
+  title: string;
+  description: string;
+  priority: TaskPriority;
+  dueDate: string;
+  category: string;
+  attachments: string[];
+  status: TaskStatus;
+  createdAt: string;
+  updatedAt: string;
+  acceptedAt?: string;
+  rejectedAt?: string;
+  rejectionReason?: string;
+}
+
+export interface TaskNotification {
+  id: string;
+  taskId: string;
+  taskTitle: string;
+  type: 'assigned' | 'accepted' | 'rejected' | 'updated';
+  message: string;
+  forRole: 'agency' | 'client';
+  forUserId: string;
+  read: boolean;
+  createdAt: string;
+}

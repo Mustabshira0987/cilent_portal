@@ -4,6 +4,7 @@ import { Toaster } from 'react-hot-toast';
 import { AuthProvider } from './auth/AuthContext';
 import ProtectedRoute from './auth/ProtectedRoute';
 import { PortalProvider } from './context/PortalContext';
+import { TaskProvider } from './context/TaskContext';
 import { DashboardLayout } from './layouts/DashboardLayout';
 
 // Auth pages
@@ -22,12 +23,16 @@ import { SettingsPage } from './pages/SettingsPage';
 import { ClientDashboard } from './pages/ClientDashboard';
 import { ProjectDetailsPage } from './pages/ProjectDetailsPage';
 import { ProjectsListPage } from './pages/ProjectsListPage';
+import { AssignTaskPage } from './pages/AssignTaskPage';
+import { TaskManagementPage } from './pages/TaskManagementPage';
+import { ClientTasksPage } from './pages/ClientTasksPage';
 
 export default function App() {
   return (
     <AuthProvider>
       <PortalProvider>
-        <BrowserRouter>
+        <TaskProvider>
+          <BrowserRouter>
           <Toaster
             position="top-right"
             toastOptions={{
@@ -57,12 +62,16 @@ export default function App() {
               <Route path="/projects/:id" element={<ProjectDetailsPage />} />
               <Route path="/deliverables" element={<DeliverablesPage />} />
               <Route path="/notifications" element={<NotificationsPage />} />
+              <Route path="/assign-task" element={<AssignTaskPage />} />
+              <Route path="/task-management" element={<TaskManagementPage />} />
+              <Route path="/my-tasks" element={<ClientTasksPage />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
-        </BrowserRouter>
+          </BrowserRouter>
+        </TaskProvider>
       </PortalProvider>
     </AuthProvider>
   );

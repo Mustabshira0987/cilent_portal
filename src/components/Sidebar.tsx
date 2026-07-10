@@ -2,10 +2,12 @@ import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { usePortal } from '../context/PortalContext';
 import { useAuth } from '../auth/AuthContext';
+import { useTask } from '../context/TaskContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, FolderKanban, PlusCircle, FolderGit2,
   Bell, Settings, LogOut, X, Zap, ShieldCheck, Users,
+  ClipboardList, LayoutList, ClipboardCheck,
 } from 'lucide-react';
 
 interface SidebarProps { isOpen: boolean; onClose: () => void; }
@@ -13,8 +15,10 @@ interface SidebarProps { isOpen: boolean; onClose: () => void; }
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const { notifications } = usePortal();
   const { signOut, user } = useAuth();
+  const { unreadCountForUser } = useTask();
   const navigate = useNavigate();
   const unread = notifications.filter(n => !n.read).length;
+  const taskUnread = user ? unreadCountForUser(user.id) : 0;
   const isAgency = user?.role === 'agency';
 
   const agencyLinks = [
@@ -22,6 +26,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: '/projects',        label: 'Projects',      icon: FolderKanban },
     { to: '/create-project',  label: 'New Project',   icon: PlusCircle },
     { to: '/deliverables',    label: 'Deliverables',  icon: FolderGit2 },
+    { to: '/assign-task',     label: 'Assign Task',   icon: ClipboardList },
+    { to: '/task-management', label: 'Task Board',    icon: LayoutList, badge: taskUnread },
     { to: '/notifications',   label: 'Notifications', icon: Bell, badge: unread },
     { to: '/settings',        label: 'Settings',      icon: Settings },
   ];
@@ -30,6 +36,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { to: '/client',          label: 'Dashboard',     icon: LayoutDashboard },
     { to: '/projects',        label: 'Projects',      icon: FolderKanban },
     { to: '/deliverables',    label: 'Deliverables',  icon: FolderGit2 },
+    { to: '/my-tasks',        label: 'My Tasks',      icon: ClipboardCheck, badge: taskUnread },
     { to: '/notifications',   label: 'Notifications', icon: Bell, badge: unread },
     { to: '/settings',        label: 'Settings',      icon: Settings },
   ];
@@ -87,7 +94,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 space-y-1 px-3 py-4">
+      <nav className="flex-1 space-y-1 px-3 py-4 overflow-y-auto">
         <p className="mb-2 px-3 text-[10px] font-bold uppercase tracking-widest" style={{ color: 'rgba(148,163,184,0.5)' }}>
           Navigation
         </p>
@@ -108,7 +115,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                 {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full" style={{ background: '#6366F1' }} />}
                 <link.icon className={`h-4 w-4 shrink-0 transition-colors ${isActive ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
                 <span className="flex-1">{link.label}</span>
-                {link.badge && link.badge > 0 && (
+                {link.badge !== undefined && link.badge > 0 && (
                   <span className="flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-bold text-white" style={{ background: 'linear-gradient(135deg,#F43F5E,#F59E0B)' }}>
                     {link.badge}
                   </span>
