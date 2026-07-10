@@ -1,224 +1,87 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { usePortal } from '../context/PortalContext';
-import { useAuth } from '../hooks/useAuth';
-import { motion } from 'framer-motion';
-import { Zap, Mail, Lock, Building2, User, AlertCircle, ArrowRight } from 'lucide-react';
+import React, { useState } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { z } from 'zod';
+import { Mail } from 'lucide-react';
+import toast from 'react-hot-toast';
+import { useAuth } from '../auth/AuthContext';
+import AuthLayout from '../components/ui/AuthLayout';
+import PasswordInput from '../components/ui/PasswordInput';
+import { InputField, LoadingButton, ErrorAlert } from '../components/ui/FormComponents';
 import { usePageTitle } from '../hooks/usePageTitle';
 
-export const LoginPage: React.FC = () => {
+const schema = z.object({
+  email: z.string().email('Enter a valid email address'),
+  password: z.string().min(1, 'Password is required'),
+  rememberMe: z.boolean().optional(),
+});
+
+type FormData = z.infer<typeof schema>;
+
+const LoginPage: React.FC = () => {
   usePageTitle('Sign In — Client Portal Lite');
+  const { signIn } = useAuth();
   const navigate = useNavigate();
-  const [searchParams] = useSearchParams();
-  const { currentRole, setRole } = usePortal();
-  const { signIn, signUp, signOut, getSavedAccounts, getLastEmail } = useAuth();
+  const [authError, setAuthError] = useState('');
 
-  const [isSignUp, setIsSignUp] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [company, setCompany] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [savedAccounts, setSavedAccounts] = useState<{ email: string; password: string }[]>([]);
+  const { register, handleSubmit, formState: { errors, isSubmitting } } = useForm<FormData>({
+    resolver: zodResolver(schema),
+  });
 
-  useEffect(() => {
-    signOut();
-    const accounts = getSavedAccounts();
-    setSavedAccounts(accounts);
-    const last = getLastEmail();
-    const match = accounts.find(a => a.email === last);
-    if (match) { setEmail(match.email); setPassword(match.password); }
-  }, []);
-
-  useEffect(() => {
-    const roleParam = searchParams.get('role');
-    if (roleParam === 'client' || roleParam === 'agency') setRole(roleParam);
-    if (searchParams.get('signup') === 'true') setIsSignUp(true);
-  }, [searchParams, setRole]);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError('');
-    if (!email || !password) { setError('Please fill in all fields.'); return; }
-    if (isSignUp && !company) { setError('Please enter your company name.'); return; }
-    setLoading(true);
-    try {
-      const { error } = isSignUp ? await signUp(email, password) : await signIn(email, password);
-      if (error) throw error;
-      setSavedAccounts(getSavedAccounts());
-      navigate(currentRole === 'agency' ? '/agency' : '/client');
-    } catch (err: any) {
-      setError(err.message || 'Authentication failed.');
-    } finally {
-      setLoading(false);
-    }
+  const onSubmit = async (data: FormData) => {
+    setAuthError('');
+    const { error, role } = await signIn(data.email, data.password);
+    if (error) { setAuthError(error); return; }
+    toast.success('Welcome back!');
+    navigate(role === 'agency' ? '/agency' : '/client', { replace: true });
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center px-4 py-12 font-sans" style={{ background: '#0A0F1E' }}>
-      {/* Background orbs */}
-      <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute top-1/4 left-1/4 h-96 w-96 rounded-full opacity-15 blur-3xl" style={{ background: 'radial-gradient(circle, #6366F1, transparent)' }} />
-        <div className="absolute bottom-1/4 right-1/4 h-64 w-64 rounded-full opacity-10 blur-3xl" style={{ background: 'radial-gradient(circle, #06B6D4, transparent)' }} />
-      </div>
+    <AuthLayout title="Welcome Back" subtitle="Sign in to your Client Portal">
+      {authError && <ErrorAlert message={authError} />}
 
-      <motion.div
-        initial={{ opacity: 0, y: 24 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.4, ease: 'easeOut' }}
-        className="relative w-full max-w-md"
-      >
-        <div className="rounded-2xl p-8" style={{ background: 'rgba(15,23,42,0.8)', backdropFilter: 'blur(24px)', border: '1px solid rgba(99,102,241,0.2)', boxShadow: '0 40px 80px rgba(0,0,0,0.5), 0 0 40px rgba(99,102,241,0.08)' }}>
+      <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+        <InputField
+          label="Email Address"
+          type="email"
+          placeholder="your@email.com"
+          icon={Mail}
+          error={errors.email?.message}
+          registration={register('email')}
+        />
 
-          {/* Logo */}
-          <div className="text-center mb-8">
-            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl btn-primary glow-indigo mb-4">
-              <Zap className="h-7 w-7 text-white" />
-            </div>
-            <h2 className="text-2xl font-extrabold tracking-tight text-white">
-              {isSignUp ? 'Create Workspace' : 'Welcome Back'}
-            </h2>
-            <p className="mt-1 text-sm" style={{ color: '#64748B' }}>
-              {isSignUp ? 'Set up your agency workspace' : 'Sign in to your portal'}
-            </p>
-          </div>
+        <PasswordInput
+          label="Password"
+          error={errors.password?.message}
+          registration={register('password')}
+        />
 
-          {/* Role switcher */}
-          <div className="grid grid-cols-2 gap-2 p-1 rounded-xl mb-6" style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.06)' }}>
-            {(['agency', 'client'] as const).map(role => (
-              <button
-                key={role}
-                type="button"
-                onClick={() => setRole(role)}
-                className="flex items-center justify-center gap-2 rounded-lg py-2.5 text-xs font-semibold transition-all duration-200"
-                style={currentRole === role ? {
-                  background: 'linear-gradient(135deg,rgba(99,102,241,0.3),rgba(59,130,246,0.2))',
-                  border: '1px solid rgba(99,102,241,0.4)',
-                  color: '#A5B4FC',
-                } : { color: '#64748B' }}
-              >
-                {role === 'agency' ? <Building2 className="h-3.5 w-3.5" /> : <User className="h-3.5 w-3.5" />}
-                <span className="capitalize">{role} Portal</span>
-              </button>
-            ))}
-          </div>
-
-          {/* Alerts */}
-          {error && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 rounded-xl p-3 mb-4 text-xs font-semibold" style={{ background: 'rgba(244,63,94,0.1)', border: '1px solid rgba(244,63,94,0.2)', color: '#F43F5E' }}>
-              <AlertCircle className="h-4 w-4 shrink-0" /><span>{error}</span>
-            </motion.div>
-          )}
-
-          {/* Saved accounts */}
-          {!isSignUp && savedAccounts.length > 0 && (
-            <div className="mb-6">
-              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: '#475569' }}>Saved Accounts</p>
-              <div className="space-y-2">
-                {savedAccounts.map(acc => (
-                  <button
-                    key={acc.email}
-                    type="button"
-                    onClick={() => { setEmail(acc.email); setPassword(acc.password); setError(''); }}
-                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition"
-                    style={{
-                      background: email === acc.email ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)',
-                      border: `1px solid ${email === acc.email ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.06)'}`,
-                    }}
-                  >
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: 'linear-gradient(135deg,#6366F1,#3B82F6)' }}>
-                      <span className="text-xs font-bold text-white">{acc.email[0].toUpperCase()}</span>
-                    </div>
-                    <span className="text-xs font-semibold text-white truncate">{acc.email}</span>
-                    {email === acc.email && <span className="ml-auto text-[10px] font-bold" style={{ color: '#818CF8' }}>Selected</span>}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {isSignUp && (
-              <div>
-                <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>Company Name</label>
-                <div className="relative">
-                  <Building2 className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#475569' }} />
-                  <input
-                    type="text"
-                    placeholder="e.g. Vortex Design LLC"
-                    value={company}
-                    onChange={e => setCompany(e.target.value)}
-                    className="w-full rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-slate-600 input-glow transition"
-                    style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>Email Address</label>
-              <div className="relative">
-                <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#475569' }} />
-                <input
-                  type="email"
-                  placeholder="your@email.com"
-                  value={email}
-                  onChange={e => setEmail(e.target.value)}
-                  className="w-full rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-slate-600 input-glow transition"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold mb-1.5" style={{ color: '#94A3B8' }}>Password</label>
-              <div className="relative">
-                <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#475569' }} />
-                <input
-                  type="password"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={e => setPassword(e.target.value)}
-                  className="w-full rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-slate-600 input-glow transition"
-                  style={{ background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="group w-full btn-primary flex items-center justify-center gap-2 rounded-xl py-3.5 text-sm font-bold text-white mt-2 disabled:opacity-60"
-            >
-              {loading ? (
-                <span>Please wait...</span>
-              ) : (
-                <>
-                  <span>{isSignUp ? 'Create Free Workspace' : `Access ${currentRole === 'agency' ? 'Agency' : 'Client'} Portal`}</span>
-                  <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-1" />
-                </>
-              )}
-            </button>
-          </form>
-
-          {/* Toggle */}
-          <div className="mt-6 text-center">
-            <p className="text-xs" style={{ color: '#475569' }}>
-              {isSignUp ? 'Already have a portal?' : 'New to Client Portal Lite?'}{' '}
-              <button
-                type="button"
-                onClick={() => { setIsSignUp(v => !v); setEmail(''); setPassword(''); setError(''); }}
-                className="font-bold transition"
-                style={{ color: '#818CF8' }}
-              >
-                {isSignUp ? 'Sign In' : 'Register Agency'}
-              </button>
-            </p>
-          </div>
+        {/* Remember me + Forgot password */}
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              {...register('rememberMe')}
+              className="h-3.5 w-3.5 rounded accent-indigo-500"
+            />
+            <span className="text-xs" style={{ color: '#64748B' }}>Remember me</span>
+          </label>
+          <Link to="/forgot-password" className="text-xs font-semibold transition hover:opacity-80" style={{ color: '#818CF8' }}>
+            Forgot password?
+          </Link>
         </div>
-      </motion.div>
-    </div>
+
+        <LoadingButton loading={isSubmitting} label="Sign In" />
+      </form>
+
+      <p className="mt-6 text-center text-xs" style={{ color: '#475569' }}>
+        Don't have an account?{' '}
+        <Link to="/register" className="font-bold transition hover:opacity-80" style={{ color: '#818CF8' }}>
+          Register
+        </Link>
+      </p>
+    </AuthLayout>
   );
 };
 

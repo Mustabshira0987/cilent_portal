@@ -1,42 +1,40 @@
 import React from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { usePortal } from '../context/PortalContext';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../auth/AuthContext';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   LayoutDashboard, FolderKanban, PlusCircle, FolderGit2,
-  Bell, Settings, LogOut, X, Zap, Users, Sparkles
+  Bell, Settings, LogOut, X, Zap, ShieldCheck, Users,
 } from 'lucide-react';
 
-interface SidebarProps {
-  isOpen: boolean;
-  onClose: () => void;
-}
+interface SidebarProps { isOpen: boolean; onClose: () => void; }
 
 export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  const { currentRole, profile, notifications } = usePortal();
-  const { signOut } = useAuth();
+  const { notifications } = usePortal();
+  const { signOut, user } = useAuth();
   const navigate = useNavigate();
   const unread = notifications.filter(n => !n.read).length;
+  const isAgency = user?.role === 'agency';
 
   const agencyLinks = [
-    { to: '/agency', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/projects', label: 'Projects', icon: FolderKanban },
-    { to: '/create-project', label: 'New Project', icon: PlusCircle },
-    { to: '/deliverables', label: 'Deliverables', icon: FolderGit2 },
-    { to: '/notifications', label: 'Notifications', icon: Bell, badge: unread },
-    { to: '/settings', label: 'Settings', icon: Settings },
+    { to: '/agency',          label: 'Dashboard',     icon: LayoutDashboard },
+    { to: '/projects',        label: 'Projects',      icon: FolderKanban },
+    { to: '/create-project',  label: 'New Project',   icon: PlusCircle },
+    { to: '/deliverables',    label: 'Deliverables',  icon: FolderGit2 },
+    { to: '/notifications',   label: 'Notifications', icon: Bell, badge: unread },
+    { to: '/settings',        label: 'Settings',      icon: Settings },
   ];
 
   const clientLinks = [
-    { to: '/client', label: 'Dashboard', icon: LayoutDashboard },
-    { to: '/projects', label: 'Projects', icon: FolderKanban },
-    { to: '/deliverables', label: 'Deliverables', icon: FolderGit2 },
-    { to: '/notifications', label: 'Notifications', icon: Bell, badge: unread },
-    { to: '/settings', label: 'Settings', icon: Settings },
+    { to: '/client',          label: 'Dashboard',     icon: LayoutDashboard },
+    { to: '/projects',        label: 'Projects',      icon: FolderKanban },
+    { to: '/deliverables',    label: 'Deliverables',  icon: FolderGit2 },
+    { to: '/notifications',   label: 'Notifications', icon: Bell, badge: unread },
+    { to: '/settings',        label: 'Settings',      icon: Settings },
   ];
 
-  const links = currentRole === 'agency' ? agencyLinks : clientLinks;
+  const links = isAgency ? agencyLinks : clientLinks;
 
   const handleLogout = async () => {
     onClose();
@@ -46,7 +44,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   const sidebarContent = (
     <aside className="flex h-full w-64 flex-col" style={{
-      background: 'rgba(10, 15, 30, 0.95)',
+      background: 'rgba(10,15,30,0.95)',
       backdropFilter: 'blur(24px)',
       borderRight: '1px solid rgba(99,102,241,0.15)',
     }}>
@@ -65,18 +63,24 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
         </button>
       </div>
 
-      {/* Profile chip */}
+      {/* User chip */}
       <div className="mx-4 mt-4 rounded-xl p-3" style={{ background: 'rgba(99,102,241,0.08)', border: '1px solid rgba(99,102,241,0.15)' }}>
         <div className="flex items-center gap-3">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg" style={{ background: 'linear-gradient(135deg,#6366F1,#3B82F6)' }}>
-            {currentRole === 'agency' ? <Users className="h-4 w-4 text-white" /> : <Sparkles className="h-4 w-4 text-white" />}
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-white text-sm font-bold"
+            style={{ background: 'linear-gradient(135deg,#6366F1,#3B82F6)' }}>
+            {user?.fullName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase() || 'U'}
           </div>
           <div className="min-w-0">
-            <p className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: 'rgba(99,102,241,0.8)' }}>
-              {currentRole === 'agency' ? 'Agency' : 'Client'} Space
-            </p>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              {isAgency
+                ? <ShieldCheck className="h-3 w-3 shrink-0" style={{ color: '#818CF8' }} />
+                : <Users className="h-3 w-3 shrink-0" style={{ color: '#06B6D4' }} />}
+              <p className="text-[10px] font-bold uppercase tracking-wider" style={{ color: isAgency ? '#818CF8' : '#06B6D4' }}>
+                {isAgency ? 'Agency' : 'Client'}
+              </p>
+            </div>
             <p className="truncate text-xs font-bold text-white">
-              {currentRole === 'agency' ? profile.companyName : 'Acme Client Suite'}
+              {user?.fullName || user?.email?.split('@')[0] || 'User'}
             </p>
           </div>
         </div>
@@ -101,9 +105,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           >
             {({ isActive }) => (
               <>
-                {isActive && (
-                  <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full" style={{ background: '#6366F1' }} />
-                )}
+                {isActive && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-0.5 rounded-full" style={{ background: '#6366F1' }} />}
                 <link.icon className={`h-4 w-4 shrink-0 transition-colors ${isActive ? 'text-indigo-400' : 'text-slate-500 group-hover:text-slate-300'}`} />
                 <span className="flex-1">{link.label}</span>
                 {link.badge && link.badge > 0 && (
@@ -134,28 +136,19 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     <>
       <AnimatePresence>
         {isOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            onClick={onClose}
-            className="fixed inset-0 z-40 lg:hidden"
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={onClose} className="fixed inset-0 z-40 lg:hidden"
             style={{ background: 'rgba(0,0,0,0.6)', backdropFilter: 'blur(4px)' }}
           />
         )}
       </AnimatePresence>
 
-      {/* Mobile drawer */}
-      <motion.div
-        className="fixed bottom-0 top-0 left-0 z-50 lg:hidden"
-        initial={{ x: '-100%' }}
-        animate={{ x: isOpen ? 0 : '-100%' }}
-        transition={{ type: 'spring', damping: 30, stiffness: 300 }}
-      >
+      <motion.div className="fixed bottom-0 top-0 left-0 z-50 lg:hidden"
+        initial={{ x: '-100%' }} animate={{ x: isOpen ? 0 : '-100%' }}
+        transition={{ type: 'spring', damping: 30, stiffness: 300 }}>
         {sidebarContent}
       </motion.div>
 
-      {/* Desktop sticky */}
       <div className="hidden lg:flex lg:sticky lg:top-0 lg:h-screen lg:flex-col">
         {sidebarContent}
       </div>
