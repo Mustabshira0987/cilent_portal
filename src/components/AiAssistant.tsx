@@ -1,5 +1,4 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from '@google/genai';
 import { usePortal } from '../context/PortalContext';
 import { Bot, X, Send, Loader2, Sparkles } from 'lucide-react';
 
@@ -8,7 +7,73 @@ interface Message {
   text: string;
 }
 
-const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_GEMINI_API_KEY });
+function buildReply(input: string, projects: any[], deliverables: any[], currentRole: string): string {
+  const q = input.toLowerCase();
+
+  // Progress
+  if (q.includes('progress')) {
+    if (!projects.length) return 'No projects found in your workspace.';
+    return projects.map(p => `• ${p.name}: ${p.progress}% (${p.status})`).join('\n');
+  }
+
+  // Pending / tasks
+  if (q.includes('pending') || q.includes('task')) {
+    const pending = projects.flatMap(p =>
+      p.milestones.filter((m: any) => m.status !== 'completed').map((m: any) => `• ${m.title} — ${p.name} (due ${m.dueDate})`)
+    );
+    return pending.length ? pending.join('\n') : 'No pending milestones right now.';
+  }
+
+  // Files / review
+  if (q.includes('file') || q.includes('review') || q.includes('deliverable')) {
+    const review = deliverables.filter(d => d.status === 'review').map(d => `• ${d.fileName} (${d.projectName})`);
+    const approved = deliverables.filter(d => d.status === 'approved').map(d => `• ${d.fileName} (${d.projectName})`);
+    let reply = '';
+    if (review.length) reply += `Awaiting review:\n${review.join('\n')}\n`;
+    if (approved.length) reply += `\nApproved:\n${approved.join('\n')}`;
+    return reply.trim() || 'No deliverables found.';
+  }
+
+  // Deadline
+  if (q.includes('deadline') || q.includes('due')) {
+    if (!projects.length) return 'No projects found.';
+    return projects.map(p => `• ${p.name}: due ${p.deadline}`).join('\n');
+  }
+
+  // Projects list
+  if (q.includes('project')) {
+    if (!projects.length) return 'No projects in your workspace yet.';
+    return projects.map(p => `• ${p.name} — ${p.status}, ${p.priority} priority`).join('\n');
+  }
+
+  // Priority
+  if (q.includes('priority') || q.includes('urgent') || q.includes('high')) {
+    const high = projects.filter(p => p.priority === 'high').map(p => `• ${p.name}`);
+    return high.length ? `High priority projects:\n${high.join('\n')}` : 'No high priority projects currently.';
+  }
+
+  // Team
+  if (q.includes('team') || q.includes('member') || q.includes('assigned')) {
+    const info = projects.map(p => `• ${p.name}: ${p.assignedTeam.map((t: any) => t.name).join(', ') || 'No team assigned'}`);
+    return info.length ? info.join('\n') : 'No team data found.';
+  }
+
+  // Summary / overview
+  if (q.includes('summary') || q.includes('overview') || q.includes('status')) {
+    const active = projects.filter(p => p.status === 'active').length;
+    const completed = projects.filter(p => p.status === 'completed').length;
+    const onHold = projects.filter(p => p.status === 'on-hold').length;
+    const pendingFiles = deliverables.filter(d => d.status === 'review').length;
+    return `Workspace Summary:\n• ${active} active, ${completed} completed, ${onHold} on-hold projects\n• ${pendingFiles} file(s) awaiting review`;
+  }
+
+  // Help
+  if (q.includes('help') || q.includes('what can')) {
+    return 'I can help you with:\n• Project progress & status\n• Pending tasks & milestones\n• Files awaiting review\n• Deadlines\n• Team assignments\n• High priority projects\n\nJust ask!';
+  }
+
+  return `I'm not sure about that. Try asking about:\n• progress, deadlines, pending tasks\n• files, deliverables, team, priority`;
+}
 
 export const AiAssistant: React.FC = () => {
   const { projects, deliverables, currentRole } = usePortal();
@@ -22,64 +87,21 @@ export const AiAssistant: React.FC = () => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages, loading]);
 
-  const buildContext = () => {
-    const projectSummaries = projects.map(p => {
-      const files = deliverables.filter(d => d.projectId === p.id);
-      const pendingFiles = files.filter(d => d.status === 'review').map(d => d.fileName);
-      const approvedFiles = files.filter(d => d.status === 'approved').map(d => d.fileName);
-      const pendingMilestones = p.milestones.filter(m => m.status !== 'completed').map(m => `${m.title} (due ${m.dueDate})`);
-      const completedMilestones = p.milestones.filter(m => m.status === 'completed').map(m => m.title);
-      return `
-Project: "${p.name}"
-  Client: ${p.clientName}
-  Status: ${p.status} | Priority: ${p.priority} | Progress: ${p.progress}%
-  Deadline: ${p.deadline}
-  Description: ${p.description}
-  Completed milestones: ${completedMilestones.join(', ') || 'none'}
-  Pending milestones: ${pendingMilestones.join(', ') || 'none'}
-  Approved files: ${approvedFiles.join(', ') || 'none'}
-  Files awaiting review: ${pendingFiles.join(', ') || 'none'}`;
-    }).join('\n');
-
-    return `You are a helpful project assistant for Client Portal Lite. You help ${currentRole === 'agency' ? 'agency staff' : 'clients'} get quick answers about their projects. Be concise and friendly. Here is the current workspace data:\n${projectSummaries}\n\nAnswer questions based only on this data. If something is not in the data, say so politely.`;
-  };
-
   const handleSend = async () => {
     const text = input.trim();
     if (!text || loading) return;
-
-    const userMsg: Message = { role: 'user', text };
-    setMessages(prev => [...prev, userMsg]);
+    setMessages(prev => [...prev, { role: 'user', text }]);
     setInput('');
     setLoading(true);
-
-    try {
-      const systemInstruction = buildContext();
-      const history = messages.map(m => ({
-        role: m.role === 'user' ? 'user' as const : 'model' as const,
-        parts: [{ text: m.text }],
-      }));
-
-      const chat = ai.chats.create({
-        model: 'gemini-2.0-flash',
-        config: { systemInstruction },
-        history,
-      });
-
-      const response = await chat.sendMessage({ message: text });
-      setMessages(prev => [...prev, { role: 'assistant', text: response.text ?? 'No response.' }]);
-    } catch {
-      setMessages(prev => [...prev, { role: 'assistant', text: 'Sorry, I could not reach the AI service. Please check your API key.' }]);
-    } finally {
+    setTimeout(() => {
+      const reply = buildReply(text, projects, deliverables, currentRole);
+      setMessages(prev => [...prev, { role: 'assistant', text: reply }]);
       setLoading(false);
-    }
+    }, 500);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   };
 
   return (

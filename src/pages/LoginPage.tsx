@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { usePortal } from '../context/PortalContext';
 import { useAuth } from '../hooks/useAuth';
 import { motion } from 'framer-motion';
-import { Zap, Mail, Lock, Building2, User, KeyRound, AlertCircle, CheckCircle, Sparkles, ArrowRight } from 'lucide-react';
+import { Zap, Mail, Lock, Building2, User, AlertCircle, ArrowRight } from 'lucide-react';
 import { usePageTitle } from '../hooks/usePageTitle';
 
 export const LoginPage: React.FC = () => {
@@ -11,20 +11,23 @@ export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { currentRole, setRole } = usePortal();
-  const { signIn, signUp, signOut, user } = useAuth();
+  const { signIn, signUp, signOut, getSavedAccounts, getLastEmail } = useAuth();
 
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [company, setCompany] = useState('');
   const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
   const [loading, setLoading] = useState(false);
-  const [cleared, setCleared] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState<{ email: string; password: string }[]>([]);
 
-  // Always clear any existing session when landing on login page
   useEffect(() => {
-    signOut().then(() => setCleared(true));
+    signOut();
+    const accounts = getSavedAccounts();
+    setSavedAccounts(accounts);
+    const last = getLastEmail();
+    const match = accounts.find(a => a.email === last);
+    if (match) { setEmail(match.email); setPassword(match.password); }
   }, []);
 
   useEffect(() => {
@@ -33,28 +36,17 @@ export const LoginPage: React.FC = () => {
     if (searchParams.get('signup') === 'true') setIsSignUp(true);
   }, [searchParams, setRole]);
 
-  // Only redirect after a fresh sign-in, not from stale localStorage
-  useEffect(() => {
-    if (cleared && user) navigate(currentRole === 'agency' ? '/agency' : '/client');
-  }, [cleared, user, currentRole, navigate]);
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
-    setSuccess('');
-    if (!email || !password) { setError('Please fill in all credentials.'); return; }
+    if (!email || !password) { setError('Please fill in all fields.'); return; }
     if (isSignUp && !company) { setError('Please enter your company name.'); return; }
     setLoading(true);
     try {
-      if (isSignUp) {
-        const { error } = await signUp(email, password);
-        if (error) throw error;
-        setSuccess('Account created! Check your email to confirm, then sign in.');
-      } else {
-        const { error } = await signIn(email, password);
-        if (error) throw error;
-        navigate(currentRole === 'agency' ? '/agency' : '/client');
-      }
+      const { error } = isSignUp ? await signUp(email, password) : await signIn(email, password);
+      if (error) throw error;
+      setSavedAccounts(getSavedAccounts());
+      navigate(currentRole === 'agency' ? '/agency' : '/client');
     } catch (err: any) {
       setError(err.message || 'Authentication failed.');
     } finally {
@@ -117,10 +109,32 @@ export const LoginPage: React.FC = () => {
               <AlertCircle className="h-4 w-4 shrink-0" /><span>{error}</span>
             </motion.div>
           )}
-          {success && (
-            <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-2 rounded-xl p-3 mb-4 text-xs font-semibold" style={{ background: 'rgba(16,185,129,0.1)', border: '1px solid rgba(16,185,129,0.2)', color: '#10B981' }}>
-              <CheckCircle className="h-4 w-4 shrink-0" /><span>{success}</span>
-            </motion.div>
+
+          {/* Saved accounts */}
+          {!isSignUp && savedAccounts.length > 0 && (
+            <div className="mb-6">
+              <p className="text-[10px] font-bold uppercase tracking-widest mb-2" style={{ color: '#475569' }}>Saved Accounts</p>
+              <div className="space-y-2">
+                {savedAccounts.map(acc => (
+                  <button
+                    key={acc.email}
+                    type="button"
+                    onClick={() => { setEmail(acc.email); setPassword(acc.password); setError(''); }}
+                    className="flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition"
+                    style={{
+                      background: email === acc.email ? 'rgba(99,102,241,0.12)' : 'rgba(255,255,255,0.03)',
+                      border: `1px solid ${email === acc.email ? 'rgba(99,102,241,0.4)' : 'rgba(255,255,255,0.06)'}`,
+                    }}
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg" style={{ background: 'linear-gradient(135deg,#6366F1,#3B82F6)' }}>
+                      <span className="text-xs font-bold text-white">{acc.email[0].toUpperCase()}</span>
+                    </div>
+                    <span className="text-xs font-semibold text-white truncate">{acc.email}</span>
+                    {email === acc.email && <span className="ml-auto text-[10px] font-bold" style={{ color: '#818CF8' }}>Selected</span>}
+                  </button>
+                ))}
+              </div>
+            </div>
           )}
 
           {/* Form */}
@@ -148,7 +162,7 @@ export const LoginPage: React.FC = () => {
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4" style={{ color: '#475569' }} />
                 <input
                   type="email"
-                  placeholder={currentRole === 'agency' ? 'agency@vortex.com' : 'client@acme.com'}
+                  placeholder="your@email.com"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
                   className="w-full rounded-xl py-3 pl-10 pr-4 text-sm text-white placeholder-slate-600 input-glow transition"
@@ -192,22 +206,15 @@ export const LoginPage: React.FC = () => {
           <div className="mt-6 text-center">
             <p className="text-xs" style={{ color: '#475569' }}>
               {isSignUp ? 'Already have a portal?' : 'New to Client Portal Lite?'}{' '}
-              <button type="button" onClick={() => setIsSignUp(!isSignUp)} className="font-bold transition" style={{ color: '#818CF8' }}>
+              <button
+                type="button"
+                onClick={() => { setIsSignUp(v => !v); setEmail(''); setPassword(''); setError(''); }}
+                className="font-bold transition"
+                style={{ color: '#818CF8' }}
+              >
                 {isSignUp ? 'Sign In' : 'Register Agency'}
               </button>
             </p>
-          </div>
-
-          {/* Demo credentials */}
-          <div className="mt-6 rounded-xl p-3" style={{ background: 'rgba(99,102,241,0.06)', border: '1px solid rgba(99,102,241,0.15)' }}>
-            <div className="flex items-center justify-center gap-2 text-xs font-bold mb-2" style={{ color: '#818CF8' }}>
-              <KeyRound className="h-3.5 w-3.5" />
-              <span>DEMO CREDENTIALS</span>
-            </div>
-            <div className="space-y-1 text-[11px]" style={{ color: '#94A3B8' }}>
-              <p><span style={{ color: '#64748B' }}>Agency →</span> agency@vortex.com / demo1234</p>
-              <p><span style={{ color: '#64748B' }}>Client →</span> client@acme.com / demo1234</p>
-            </div>
           </div>
         </div>
       </motion.div>

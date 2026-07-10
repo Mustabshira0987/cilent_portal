@@ -5,8 +5,8 @@ import { DashboardLayout } from './layouts/DashboardLayout';
 import { useAuth } from './hooks/useAuth';
 
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { user } = useAuth();
-  return user ? <>{children}</> : <Navigate to="/login" replace />;
+  const session = localStorage.getItem('cpl_mock_user');
+  return session ? <>{children}</> : <Navigate to="/login" replace />;
 };
 
 // Pages import

@@ -1,38 +1,35 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 
-const SESSION_KEY = 'cpl_mock_user';
+const SESSION_KEY = 'cpl_session';
 const ACCOUNTS_KEY = 'cpl_accounts';
+const LAST_EMAIL_KEY = 'cpl_last_email';
 
-interface Account { id: string; email: string; password: string; }
+// Force wipe all old stale data
+const CLEAN_VERSION = 'v3';
+if (localStorage.getItem('cpl_clean') !== CLEAN_VERSION) {
+  Object.keys(localStorage)
+    .filter(k => k.startsWith('cpl_'))
+    .forEach(k => localStorage.removeItem(k));
+  localStorage.setItem('cpl_clean', CLEAN_VERSION);
+}
 
-const getAccounts = (): Account[] => {
-  const defaults: Account[] = [
-    { id: 'agency@vortex.com', email: 'agency@vortex.com', password: 'demo1234' },
-    { id: 'client@acme.com',   email: 'client@acme.com',   password: 'demo1234' },
-  ];
-  const stored = localStorage.getItem(ACCOUNTS_KEY);
-  if (!stored) { localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(defaults)); return defaults; }
-  return JSON.parse(stored) as Account[];
-};
+interface Account { email: string; password: string; }
+
+const getAccounts = (): Account[] =>
+  JSON.parse(localStorage.getItem(ACCOUNTS_KEY) || '[]');
 
 const saveAccounts = (accounts: Account[]) =>
   localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(accounts));
 
 export function useAuth() {
-  const [user, setUser] = useState<{ id: string; email: string } | null>(null);
-  const [loading] = useState(false);
-
-  useEffect(() => {
-    if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user));
-    else localStorage.removeItem(SESSION_KEY);
-  }, [user]);
+  const [user, setUser] = useState<{ email: string } | null>(null);
 
   const signIn = async (email: string, password: string) => {
-    const accounts = getAccounts();
-    const match = accounts.find(a => a.email === email && a.password === password);
+    const match = getAccounts().find(a => a.email === email && a.password === password);
     if (!match) return { error: { message: 'Invalid email or password.' } };
-    const loggedIn = { id: match.id, email: match.email };
-    setUser(loggedIn);
+    setUser({ email });
+    localStorage.setItem(SESSION_KEY, email);
+    localStorage.setItem(LAST_EMAIL_KEY, email);
     return { error: null };
   };
 
@@ -41,13 +38,21 @@ export function useAuth() {
     const accounts = getAccounts();
     if (accounts.find(a => a.email === email))
       return { error: { message: 'An account with this email already exists.' } };
-    const newAccount: Account = { id: email, email, password };
-    saveAccounts([...accounts, newAccount]);
-    setUser({ id: email, email });
+    saveAccounts([...accounts, { email, password }]);
+    setUser({ email });
+    localStorage.setItem(SESSION_KEY, email);
+    localStorage.setItem(LAST_EMAIL_KEY, email);
     return { error: null };
   };
 
-  const signOut = async () => setUser(null);
+  const signOut = async () => {
+    setUser(null);
+    localStorage.removeItem(SESSION_KEY);
+  };
 
-  return { session: user ? { user } : null, user, loading, signIn, signUp, signOut };
+  const getSavedAccounts = (): Account[] => getAccounts();
+
+  const getLastEmail = (): string => localStorage.getItem(LAST_EMAIL_KEY) || '';
+
+  return { user, signIn, signUp, signOut, getSavedAccounts, getLastEmail };
 }
