@@ -1,0 +1,6 @@
+{
+  "name": "Client Portal Lite",
+  "description": "A centralized workspace for agencies and clients to collaborate on projects, manage deliverables, view timelines, and approve milestones.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
